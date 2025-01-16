@@ -38,9 +38,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define FFT_BUFFER_SIZE 2048
-#define SAMPLE_FREQ 48000
-#define F0 440.0
+#define BUFFER_SIZE 256
+#define SAMPLE_RATE 8000
+#define A4 440.0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,24 +51,12 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
 SPI_HandleTypeDef hspi2;
-
 TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-arm_rfft_fast_instance_f32 fftHandler;
-
-float fftBufIn[FFT_BUFFER_SIZE];
-
-float fftBufOut[FFT_BUFFER_SIZE];
-
-float peakHz = 0.0f;
-
-volatile int TIM3Flag = 0;
-
-volatile uint16_t adcData[FFT_BUFFER_SIZE];
+volatile uint16_t adc_data[2][BUFFER_SIZE];
+float normalized_data[BUFFER_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,40 +66,16 @@ static void MX_DMA_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void fft()
+void updateDisplay(float f_sample)
 {
-	float magnitudes [FFT_BUFFER_SIZE/2];
-	float peakVal = 0.0f;
-
-	// initialize fft function
-	arm_rfft_fast_init_f32(&fftHandler, FFT_BUFFER_SIZE);
-
-	// run fft calculation
-	arm_rfft_fast_f32(&fftHandler, fftBufIn, fftBufOut, 0);
-
-	// calculate magnitudes
-	arm_cmplx_mag_f32(fftBufOut, magnitudes, FFT_BUFFER_SIZE/2);
-
-	// identify peak frequency
-	for(int i = 0; i < FFT_BUFFER_SIZE/2; i++) {
-		if(magnitudes[i] > peakVal){
-			peakVal = magnitudes[i];
-			peakHz = ((float)i * SAMPLE_FREQ) / (float)FFT_BUFFER_SIZE;
-		}
-	}
-}
-
-void updateDisplay(float fn)
-{
-	// number of semitones from A4
-	float n = 12.0 * log2f(fn/F0);
+	// number of semi-tones from A
+	float n = 12.0 * log2f(f_sample/A4);
 	float modn = fmodf(n, 12.0f);
 	switch ((int)roundf(modn))
 	{
@@ -154,24 +118,18 @@ void updateDisplay(float fn)
 	}
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
-{
-	// normalize ADC data for FFT
-	for(int i=0; i < FFT_BUFFER_SIZE; i++) {
-	  fftBufIn[i] = (float32_t)(adcData[i] - 2048) / 2048.0f;
-	}
-	if(TIM3Flag){
-		fft();
-		updateDisplay(peakHz);
-		TIM3Flag = 0;
-	}
-
-}
-
-void HAL_TIM_TriggerCallback(TIM_HandleTypeDef *htim)
-{
-	if (htim->Instance == TIM3) {
-		TIM3Flag = 1;
+void normalizeData() {
+	uint32_t remaining = __HAL_DMA_GET_COUNTER(&hdma_adc1);
+	if(remaining > BUFFER_SIZE) {
+		// DMA is writing to buffer 0 so buffer 1 is safe to read
+		for(int i=0; i < BUFFER_SIZE; i++) {
+			normalized_data[i] = (float32_t)(adc_data[1][i] - 2048) / 2048.0f;
+		}
+	} else {
+		// DMA is writing to buffer 1 so buffer 0 is safe to read
+		for(int i=0; i < BUFFER_SIZE; i++) {
+			normalized_data[i] = (float32_t)(adc_data[0][i] - 2048) / 2048.0f;
+		}
 	}
 }
 /* USER CODE END 0 */
@@ -210,15 +168,11 @@ int main(void)
   MX_SPI2_Init();
   MX_ADC1_Init();
   MX_TIM2_Init();
-  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   ST7735_Init();
   ST7735_FillScreen(ST7735_BLACK);
-
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, FFT_BUFFER_SIZE);
-
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_data, BUFFER_SIZE);
   HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_Base_Start(&htim3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -390,7 +344,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1000-1;
+  htim2.Init.Period = 6000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -411,51 +365,6 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-
-}
-
-/**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 800-1;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
 
 }
 
