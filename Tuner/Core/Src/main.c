@@ -29,6 +29,7 @@
 #include <testimg.h>
 #include "st7735.h"
 #include "fonts.h"
+#include "Yin.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +42,7 @@
 #define BUFFER_SIZE 256
 #define SAMPLE_RATE 8000
 #define A4 440.0
+#define THRESHOLD 0.1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,7 +58,8 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 volatile uint16_t adc_data[2][BUFFER_SIZE];
-float normalized_data[BUFFER_SIZE];
+int16_t yin_buffer[BUFFER_SIZE];
+Yin yin;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -72,63 +75,85 @@ extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void updateDisplay(float f_sample)
-{
-	// number of semi-tones from A
-	float n = 12.0 * log2f(f_sample/A4);
-	float modn = fmodf(n, 12.0f);
-	switch ((int)roundf(modn))
+int closest_note(float f_signal_hz) {
+	float n = 12.0f * log2f(f_signal_hz/A4);
+	return (int)roundf(fmodf(n, 12.0f));
+}
+
+int deviation_cents(float f_signal_hz) {
+	float semitones = 12.0f * log2f(f_signal_hz/A4);
+	int nearest_semitone = roundf(semitones);
+	float deviation = (semitones - nearest_semitone) * 100;
+	return (int)roundf(deviation);
+}
+
+void update_display(float f_signal_hz) {
+	int cents = deviation_cents(f_signal_hz);
+	char buffer[16];
+	switch (closest_note(f_signal_hz))
 	{
 	case 0:
-		ST7735_WriteString(0,0,"A", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "A %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 1:
-		ST7735_WriteString(0,0,"A#", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "A# %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 2:
-		ST7735_WriteString(0,0,"B", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "B %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 3:
-		ST7735_WriteString(0,0,"C", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "C %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 4:
-		ST7735_WriteString(0,0,"C#", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "C# %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 5:
-		ST7735_WriteString(0,0,"D", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "D %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 6:
-		ST7735_WriteString(0,0,"D#", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "D# %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 7:
-		ST7735_WriteString(0,0,"E", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "E %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 8:
-		ST7735_WriteString(0,0,"F", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "F %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 9:
-		ST7735_WriteString(0,0,"F#", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "F# %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 10:
-		ST7735_WriteString(0,0,"G", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "G %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	case 11:
-		ST7735_WriteString(0,0,"G#", Font_16x26, ST7735_RED, ST7735_BLACK);
+		snprintf(buffer, sizeof(buffer), "G# %+d", cents);
+		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
 		break;
 	}
 }
 
-void normalizeData() {
+void normalize_data() {
 	uint32_t remaining = __HAL_DMA_GET_COUNTER(&hdma_adc1);
 	if(remaining > BUFFER_SIZE) {
 		// DMA is writing to buffer 0 so buffer 1 is safe to read
 		for(int i=0; i < BUFFER_SIZE; i++) {
-			normalized_data[i] = (float32_t)(adc_data[1][i] - 2048) / 2048.0f;
+			yin_buffer[i] = (int16_t)(adc_data[1][i] - 32768);
 		}
 	} else {
 		// DMA is writing to buffer 1 so buffer 0 is safe to read
 		for(int i=0; i < BUFFER_SIZE; i++) {
-			normalized_data[i] = (float32_t)(adc_data[0][i] - 2048) / 2048.0f;
+			yin_buffer[i] = (int16_t)(adc_data[0][i] - 32768);
 		}
 	}
 }
@@ -173,12 +198,17 @@ int main(void)
   ST7735_FillScreen(ST7735_BLACK);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_data, BUFFER_SIZE);
   HAL_TIM_Base_Start(&htim2);
+  Yin_init(&yin, BUFFER_SIZE, THRESHOLD);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  float f_signal_hz;
   while (1)
   {
+	  normalize_data();
+	  f_signal_hz = Yin_getPitch(&yin, yin_buffer);
+	  update_display(f_signal_hz);
 
   }
     /* USER CODE END WHILE */
