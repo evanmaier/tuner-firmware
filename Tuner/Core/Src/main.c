@@ -30,6 +30,7 @@
 #include "st7735.h"
 #include "fonts.h"
 #include "Yin.h"
+#include "audio_data.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,8 +42,11 @@
 /* USER CODE BEGIN PD */
 #define BUFFER_SIZE 256
 #define SAMPLE_RATE 8000
-#define A4 440.0
 #define THRESHOLD 0.1
+#define MIN_FREQ 65.41
+#define MAX_FREQ 523.25
+#define A4 440.0
+#define TESTING 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,7 +62,7 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 volatile uint16_t adc_data[2][BUFFER_SIZE];
-int16_t yin_buffer[BUFFER_SIZE];
+float yinBuffer[BUFFER_SIZE];
 Yin yin;
 /* USER CODE END PV */
 
@@ -75,22 +79,23 @@ extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int closest_note(float f_signal_hz) {
-	float n = 12.0f * log2f(f_signal_hz/A4);
-	return (int)roundf(fmodf(n, 12.0f));
+int closest_note(float32_t pitchInHz) {
+    float32_t n = 12.0f * log2f(pitchInHz / A4);
+    n = roundf(fmodf(n, 12.0f));
+    return ((int)n + 12) % 12;
 }
 
-int deviation_cents(float f_signal_hz) {
-	float semitones = 12.0f * log2f(f_signal_hz/A4);
+int deviation_cents(float32_t pitchInHz) {
+	float32_t semitones = 12.0f * log2f(pitchInHz/A4);
 	int nearest_semitone = roundf(semitones);
-	float deviation = (semitones - nearest_semitone) * 100;
+	float32_t deviation = (semitones - nearest_semitone) * 100;
 	return (int)roundf(deviation);
 }
 
-void update_display(float f_signal_hz) {
-	int cents = deviation_cents(f_signal_hz);
+void update_display(float32_t pitchInHz) {
+	int cents = deviation_cents(pitchInHz);
 	char buffer[16];
-	switch (closest_note(f_signal_hz))
+	switch (closest_note(pitchInHz))
 	{
 	case 0:
 		snprintf(buffer, sizeof(buffer), "A %+d", cents);
@@ -143,17 +148,23 @@ void update_display(float f_signal_hz) {
 	}
 }
 
-void normalize_data() {
-	uint32_t remaining = __HAL_DMA_GET_COUNTER(&hdma_adc1);
-	if(remaining > BUFFER_SIZE) {
-		// DMA is writing to buffer 0 so buffer 1 is safe to read
+void normalize_data(int16_t* input, float32_t* output) {
+	if(TESTING){
 		for(int i=0; i < BUFFER_SIZE; i++) {
-			yin_buffer[i] = (int16_t)(adc_data[1][i] - 32768);
+			output[i] = (float32_t)(input[i] - 2048) / 2048.0f;
 		}
 	} else {
-		// DMA is writing to buffer 1 so buffer 0 is safe to read
-		for(int i=0; i < BUFFER_SIZE; i++) {
-			yin_buffer[i] = (int16_t)(adc_data[0][i] - 32768);
+		uint32_t remaining = __HAL_DMA_GET_COUNTER(&hdma_adc1);
+		if(remaining > BUFFER_SIZE) {
+			// DMA is writing to buffer 0 so buffer 1 is safe to read
+			for(int i=0; i < BUFFER_SIZE; i++) {
+				output[i] = (float32_t)(adc_data[1][i] - 2048) / 2048.0f;
+			}
+		} else {
+			// DMA is writing to buffer 1 so buffer 0 is safe to read
+			for(int i=0; i < BUFFER_SIZE; i++) {
+				yinBuffer[i] = (float32_t)(adc_data[0][i] - 2048) / 2048.0f;
+			}
 		}
 	}
 }
@@ -198,18 +209,18 @@ int main(void)
   ST7735_FillScreen(ST7735_BLACK);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_data, BUFFER_SIZE);
   HAL_TIM_Base_Start(&htim2);
-  Yin_init(&yin, BUFFER_SIZE, THRESHOLD);
+  Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD, MIN_FREQ, MAX_FREQ);
+  float32_t pitchInHz;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  float f_signal_hz;
   while (1)
   {
-	  normalize_data();
-	  f_signal_hz = Yin_getPitch(&yin, yin_buffer);
-	  update_display(f_signal_hz);
-
+	  normalize_data(audio_data, yinBuffer);
+	  pitchInHz = Yin_getPitch(&yin, yinBuffer);
+	  update_display(pitchInHz);
+	  HAL_Delay(1000);
   }
     /* USER CODE END WHILE */
 
