@@ -220,7 +220,6 @@ int main(void)
 	  normalize_data(audio_data, yinBuffer);
 	  pitchInHz = Yin_getPitch(&yin, yinBuffer);
 	  update_display(pitchInHz);
-	  HAL_Delay(1000);
   }
     /* USER CODE END WHILE */
 
