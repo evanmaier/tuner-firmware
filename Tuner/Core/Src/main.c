@@ -26,11 +26,12 @@
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
-#include <testimg.h>
+#include <images.h>
 #include "st7735.h"
 #include "fonts.h"
 #include "Yin.h"
 #include "audio_data.h"
+#include <stdlib.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +48,20 @@
 #define MAX_FREQ 523.25
 #define A4 440.0
 #define TESTING 1
+/* Display Parameters */
+#define DISPLAY_WIDTH 128
+#define DISPLAY_HEIGHT 160
+#define PADDING 10
+/* Bar Parameters */
+#define BAR_HEIGHT 40
+#define BAR_WIDTH 50
+#define CENTER_WIDTH 4
+#define CENTER_OFFSET 2
+/* Note Parameters */
+#define NOTE_WIDTH 56
+#define NOTE_HEIGHT 84
+#define SHARP_WIDTH 20
+#define SHARP_HEIGHT 43
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -62,7 +77,8 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 volatile uint16_t adc_data[2][BUFFER_SIZE];
-float yinBuffer[BUFFER_SIZE];
+float32_t yinBuffer[BUFFER_SIZE];
+float32_t pitchBuffer[3] = {0.0f, 0.0f, 0.0f};
 Yin yin;
 /* USER CODE END PV */
 
@@ -93,58 +109,56 @@ int deviation_cents(float32_t pitchInHz) {
 }
 
 void update_display(float32_t pitchInHz) {
-	int cents = deviation_cents(pitchInHz);
-	char buffer[16];
 	switch (closest_note(pitchInHz))
 	{
 	case 0:
-		snprintf(buffer, sizeof(buffer), "A %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x41);
 		break;
 	case 1:
-		snprintf(buffer, sizeof(buffer), "A# %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x41);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
 		break;
 	case 2:
-		snprintf(buffer, sizeof(buffer), "B %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x42);
 		break;
 	case 3:
-		snprintf(buffer, sizeof(buffer), "C %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x43);
 		break;
 	case 4:
-		snprintf(buffer, sizeof(buffer), "C# %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x43);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
 		break;
 	case 5:
-		snprintf(buffer, sizeof(buffer), "D %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x44);
 		break;
 	case 6:
-		snprintf(buffer, sizeof(buffer), "D# %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x44);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
 		break;
 	case 7:
-		snprintf(buffer, sizeof(buffer), "E %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x45);
 		break;
 	case 8:
-		snprintf(buffer, sizeof(buffer), "F %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x46);
 		break;
 	case 9:
-		snprintf(buffer, sizeof(buffer), "F# %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x46);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
 		break;
 	case 10:
-		snprintf(buffer, sizeof(buffer), "G %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x47);
 		break;
 	case 11:
-		snprintf(buffer, sizeof(buffer), "G# %+d", cents);
-		ST7735_WriteString(0,0,buffer, Font_16x26, ST7735_RED, ST7735_BLACK);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x47);
+		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
 		break;
+	}
+
+	int cents = deviation_cents(pitchInHz);
+	if (cents < 0) {
+		ST7735_FillRectangleFast(PADDING + BAR_WIDTH - abs(cents), PADDING, abs(cents), BAR_HEIGHT, ST7735_RED);
+	} else {
+		ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET + CENTER_WIDTH + CENTER_OFFSET, PADDING, cents, BAR_HEIGHT, ST7735_GREEN);
 	}
 }
 
@@ -205,21 +219,31 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  ST7735_Init();
-  ST7735_FillScreen(ST7735_BLACK);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_data, BUFFER_SIZE);
   HAL_TIM_Base_Start(&htim2);
+
   Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD, MIN_FREQ, MAX_FREQ);
+
+  ST7735_Init();
+  ST7735_FillScreenFast(ST7735_BLACK);
+  ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET, PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
+
   float32_t pitchInHz;
+  uint8_t i = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  normalize_data(audio_data, yinBuffer);
+	  normalize_data(A_sharp, yinBuffer);
 	  pitchInHz = Yin_getPitch(&yin, yinBuffer);
+	  pitchBuffer[i] = pitchInHz;
+	  if(pitchBuffer[2] != 0.0f){
+		  pitchInHz = (pitchBuffer[0] + pitchBuffer[1] + pitchBuffer[2]) / 3.0f;
+	  }
 	  update_display(pitchInHz);
+	  i = (i + 1) % 3;
   }
     /* USER CODE END WHILE */
 
