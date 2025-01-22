@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -32,6 +31,7 @@
 #include "Yin.h"
 #include "audio_data.h"
 #include <stdlib.h>
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,13 +41,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 128
 #define SAMPLE_RATE 8000
 #define THRESHOLD 0.1
 #define MIN_FREQ 65.41
 #define MAX_FREQ 523.25
 #define A4 440.0
-#define TESTING 1
+#define TESTING 0
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -72,13 +72,17 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
+
 SPI_HandleTypeDef hspi2;
+
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-volatile uint16_t adc_data[2][BUFFER_SIZE];
+uint16_t adcData[BUFFER_SIZE*2];
+static volatile uint16_t* adcBufPtr;
+uint8_t dataReady;
+
 float32_t yinBuffer[BUFFER_SIZE];
-float32_t pitchBuffer[3] = {0.0f, 0.0f, 0.0f};
 Yin yin;
 /* USER CODE END PV */
 
@@ -95,6 +99,16 @@ extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
+	adcBufPtr = &adcData[0];
+	dataReady = true;
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+	adcBufPtr = &adcData[BUFFER_SIZE];
+	dataReady = true;
+}
+
 int closest_note(float32_t pitchInHz) {
     float32_t n = 12.0f * log2f(pitchInHz / A4);
     n = roundf(fmodf(n, 12.0f));
@@ -108,77 +122,77 @@ int deviation_cents(float32_t pitchInHz) {
 	return (int)roundf(deviation);
 }
 
-void update_display(float32_t pitchInHz) {
-	switch (closest_note(pitchInHz))
-	{
-	case 0:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x41);
-		break;
-	case 1:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x41);
+void draw_note(const uint16_t* note, uint8_t isSharp) {
+	ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, note);
+	if (isSharp) {
 		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
-		break;
-	case 2:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x42);
-		break;
-	case 3:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x43);
-		break;
-	case 4:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x43);
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
-		break;
-	case 5:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x44);
-		break;
-	case 6:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x44);
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
-		break;
-	case 7:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x45);
-		break;
-	case 8:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x46);
-		break;
-	case 9:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x46);
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
-		break;
-	case 10:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x47);
-		break;
-	case 11:
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, image_data_Font_0x47);
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
-		break;
+	} else {
+		ST7735_FillRectangleFast((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, ST7735_BLACK);
 	}
+}
 
-	int cents = deviation_cents(pitchInHz);
+void draw_bar(int cents){
 	if (cents < 0) {
 		ST7735_FillRectangleFast(PADDING + BAR_WIDTH - abs(cents), PADDING, abs(cents), BAR_HEIGHT, ST7735_RED);
+		ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET + CENTER_WIDTH + CENTER_OFFSET, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
 	} else {
+		ST7735_FillRectangleFast(PADDING, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
 		ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET + CENTER_WIDTH + CENTER_OFFSET, PADDING, cents, BAR_HEIGHT, ST7735_GREEN);
 	}
 }
 
-void normalize_data(int16_t* input, float32_t* output) {
+void update_display(float32_t pitchInHz) {
+	draw_bar(deviation_cents(pitchInHz));
+
+	switch (closest_note(pitchInHz))
+	{
+	case 0:
+		draw_note(image_data_Font_0x41, false);
+		break;
+	case 1:
+		draw_note(image_data_Font_0x41, true);
+		break;
+	case 2:
+		draw_note(image_data_Font_0x42, false);
+		break;
+	case 3:
+		draw_note(image_data_Font_0x43, false);
+		break;
+	case 4:
+		draw_note(image_data_Font_0x43, true);
+		break;
+	case 5:
+		draw_note(image_data_Font_0x44, false);
+		break;
+	case 6:
+		draw_note(image_data_Font_0x44, true);
+		break;
+	case 7:
+		draw_note(image_data_Font_0x45, false);
+		break;
+	case 8:
+		draw_note(image_data_Font_0x46, false);
+		break;
+	case 9:
+		draw_note(image_data_Font_0x46, true);
+		break;
+	case 10:
+		draw_note(image_data_Font_0x47, false);
+		break;
+	case 11:
+		draw_note(image_data_Font_0x47, true);
+		break;
+	}
+}
+
+void normalize_data() {
 	if(TESTING){
 		for(int i=0; i < BUFFER_SIZE; i++) {
-			output[i] = (float32_t)(input[i] - 2048) / 2048.0f;
+			yinBuffer[i] = (float32_t)(low_E[i] - 2048) / 2048.0f;
 		}
 	} else {
-		uint32_t remaining = __HAL_DMA_GET_COUNTER(&hdma_adc1);
-		if(remaining > BUFFER_SIZE) {
-			// DMA is writing to buffer 0 so buffer 1 is safe to read
-			for(int i=0; i < BUFFER_SIZE; i++) {
-				output[i] = (float32_t)(adc_data[1][i] - 2048) / 2048.0f;
-			}
-		} else {
-			// DMA is writing to buffer 1 so buffer 0 is safe to read
-			for(int i=0; i < BUFFER_SIZE; i++) {
-				yinBuffer[i] = (float32_t)(adc_data[0][i] - 2048) / 2048.0f;
-			}
+		for(int i=0; i < BUFFER_SIZE; i++) {
+			yinBuffer[i] = (float32_t)(adcBufPtr[i] - 2048) / 2048.0f;
 		}
 	}
 }
@@ -214,12 +228,11 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_USB_DEVICE_Init();
   MX_SPI2_Init();
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_data, BUFFER_SIZE);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
   HAL_TIM_Base_Start(&htim2);
 
   Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD, MIN_FREQ, MAX_FREQ);
@@ -227,23 +240,18 @@ int main(void)
   ST7735_Init();
   ST7735_FillScreenFast(ST7735_BLACK);
   ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET, PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
-
-  float32_t pitchInHz;
-  uint8_t i = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  normalize_data(A_sharp, yinBuffer);
-	  pitchInHz = Yin_getPitch(&yin, yinBuffer);
-	  pitchBuffer[i] = pitchInHz;
-	  if(pitchBuffer[2] != 0.0f){
-		  pitchInHz = (pitchBuffer[0] + pitchBuffer[1] + pitchBuffer[2]) / 3.0f;
+	  if (dataReady) {
+		  dataReady = false;
+		  normalize_data();
+		  update_display(Yin_getPitch(&yin, yinBuffer));
 	  }
-	  update_display(pitchInHz);
-	  i = (i + 1) % 3;
+
   }
     /* USER CODE END WHILE */
 
@@ -338,7 +346,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_56CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_112CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
