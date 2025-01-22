@@ -41,13 +41,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define BUFFER_SIZE 128
-#define SAMPLE_RATE 8000
+#define TEST_MODE 1
+#define BUFFER_SIZE 256
+#define SAMPLE_RATE 16000
 #define THRESHOLD 0.1
 #define MIN_FREQ 65.41
 #define MAX_FREQ 523.25
 #define A4 440.0
-#define TESTING 0
+#define ADC_MAX 4095.0
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -79,7 +80,7 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 uint16_t adcData[BUFFER_SIZE*2];
-static volatile uint16_t* adcBufPtr;
+uint16_t* adcBufPtr;
 uint8_t dataReady;
 
 float32_t yinBuffer[BUFFER_SIZE];
@@ -132,12 +133,20 @@ void draw_note(const uint16_t* note, uint8_t isSharp) {
 }
 
 void draw_bar(int cents){
+	uint16_t x = PADDING;
 	if (cents < 0) {
-		ST7735_FillRectangleFast(PADDING + BAR_WIDTH - abs(cents), PADDING, abs(cents), BAR_HEIGHT, ST7735_RED);
-		ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET + CENTER_WIDTH + CENTER_OFFSET, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+		cents = abs(cents);
+		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH - cents, BAR_HEIGHT, ST7735_BLACK);
+		x += BAR_WIDTH - cents;
+		ST7735_FillRectangleFast(x, PADDING, cents, BAR_HEIGHT, ST7735_RED);
+		x += abs(cents) + CENTER_WIDTH + 2*CENTER_OFFSET;
+		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
 	} else {
-		ST7735_FillRectangleFast(PADDING, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
-		ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET + CENTER_WIDTH + CENTER_OFFSET, PADDING, cents, BAR_HEIGHT, ST7735_GREEN);
+		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+		x += BAR_WIDTH + CENTER_WIDTH + 2*CENTER_OFFSET;
+		ST7735_FillRectangleFast(x, PADDING, cents, BAR_HEIGHT, ST7735_GREEN);
+		x += cents;
+		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH - cents, BAR_HEIGHT, ST7735_BLACK);
 	}
 }
 
@@ -185,15 +194,9 @@ void update_display(float32_t pitchInHz) {
 	}
 }
 
-void normalize_data() {
-	if(TESTING){
-		for(int i=0; i < BUFFER_SIZE; i++) {
-			yinBuffer[i] = (float32_t)(low_E[i] - 2048) / 2048.0f;
-		}
-	} else {
-		for(int i=0; i < BUFFER_SIZE; i++) {
-			yinBuffer[i] = (float32_t)(adcBufPtr[i] - 2048) / 2048.0f;
-		}
+void normalize_data(uint16_t* bufPtr) {
+	for(int i=0; i < BUFFER_SIZE; i++) {
+		yinBuffer[i] = (float32_t)(2 * bufPtr[i] - ADC_MAX) / ADC_MAX;
 	}
 }
 /* USER CODE END 0 */
@@ -244,15 +247,31 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-	  if (dataReady) {
-		  dataReady = false;
-		  normalize_data();
-		  update_display(Yin_getPitch(&yin, yinBuffer));
-	  }
+  /* Real Code */
 
+  /* Test Code */
+  if (TEST_MODE) {
+    while (1) {
+    	uint16_t* testBufPtr = &sweepData[0];
+		for(int i = 0; i < (sizeof(sweepData)/sizeof(uint16_t)) / BUFFER_SIZE; i++) {
+		  normalize_data(testBufPtr);
+		  update_display(Yin_getPitch(&yin, yinBuffer));
+		  testBufPtr += BUFFER_SIZE;
+		  HAL_Delay(250);
+		}
+	}
   }
+  if (!TEST_MODE) {
+	while (1) {
+		if (dataReady) {
+		  dataReady = false;
+		  normalize_data(adcBufPtr);
+		  update_display(Yin_getPitch(&yin, yinBuffer));
+		}
+	}
+  }
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -416,7 +435,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 6000-1;
+  htim2.Init.Period = 3000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
