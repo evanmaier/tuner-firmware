@@ -41,7 +41,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TEST_MODE 1
+#define TEST_MODE 0
 #define BUFFER_SIZE 256
 #define SAMPLE_RATE 16000
 #define THRESHOLD 0.1
@@ -85,6 +85,8 @@ uint8_t dataReady;
 
 float32_t yinBuffer[BUFFER_SIZE];
 Yin yin;
+
+float32_t window[5] = {-1, -1, -1, -1, -1};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -262,11 +264,34 @@ int main(void)
 	}
   }
   if (!TEST_MODE) {
+	uint8_t i = 0, j, k;
+	float32_t sum;
+	size_t windowLen = sizeof(window) / sizeof(float32_t);
+
 	while (1) {
 		if (dataReady) {
+
 		  dataReady = false;
+
 		  normalize_data(adcBufPtr);
-		  update_display(Yin_getPitch(&yin, yinBuffer));
+
+		  window[i] = Yin_getPitch(&yin, yinBuffer);
+
+		  i = (i+1) % windowLen;
+
+		  sum = k = 0;
+
+		  for (j = 0; j < windowLen; j++) {
+			  if (window[j] > 0) {
+				  sum += window[j];
+				  k++;
+			  }
+		  }
+
+		  if (k  > 0) {
+			  update_display( sum / k );
+		  }
+
 		}
 	}
   }
