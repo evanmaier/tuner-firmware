@@ -97,7 +97,7 @@ static void MX_SPI2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
