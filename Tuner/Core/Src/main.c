@@ -87,6 +87,8 @@ float32_t yinBuffer[BUFFER_SIZE];
 Yin yin;
 
 float32_t window[5] = {-1, -1, -1, -1, -1};
+
+uint16_t* testBufPtr;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -196,9 +198,15 @@ void update_display(float32_t pitchInHz) {
 	}
 }
 
-void normalize_data(uint16_t* bufPtr) {
+void normalize_data() {
 	for(int i=0; i < BUFFER_SIZE; i++) {
-		yinBuffer[i] = (float32_t)(2 * bufPtr[i] - ADC_MAX) / ADC_MAX;
+		yinBuffer[i] = (float32_t)(2 * adcBufPtr[i] - ADC_MAX) / ADC_MAX;
+	}
+}
+
+void normalize_test_data() {
+	for(int i=0; i < BUFFER_SIZE; i++) {
+		yinBuffer[i] = (float32_t)(2 * testBufPtr[i] - ADC_MAX) / ADC_MAX;
 	}
 }
 /* USER CODE END 0 */
@@ -254,9 +262,9 @@ int main(void)
   /* Test Code */
   if (TEST_MODE) {
     while (1) {
-    	uint16_t* testBufPtr = &sweepData[0];
+    	testBufPtr = &sweepData[0];
 		for(int i = 0; i < (sizeof(sweepData)/sizeof(uint16_t)) / BUFFER_SIZE; i++) {
-		  normalize_data(testBufPtr);
+		  normalize_test_data();
 		  update_display(Yin_getPitch(&yin, yinBuffer));
 		  testBufPtr += BUFFER_SIZE;
 		  HAL_Delay(250);
@@ -273,7 +281,7 @@ int main(void)
 
 		  dataReady = false;
 
-		  normalize_data(adcBufPtr);
+		  normalize_data();
 
 		  window[i] = Yin_getPitch(&yin, yinBuffer);
 
