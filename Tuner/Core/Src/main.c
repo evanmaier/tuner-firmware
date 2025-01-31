@@ -42,11 +42,14 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define TEST_MODE 0
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 256
 #define SAMPLE_RATE 8000
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
+#define WINDOW_SIZE 5
+#define MIN_HZ 60
+#define MAX_HZ 700
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -83,8 +86,6 @@ uint8_t dataReady;
 
 float32_t yinBuffer[BUFFER_SIZE];
 Yin yin;
-
-float32_t window[] = {-1, -1, -1, -1, -1};
 
 uint16_t* testBufPtr;
 /* USER CODE END PV */
@@ -269,31 +270,34 @@ int main(void)
 	}
   }
   if (!TEST_MODE) {
-	uint8_t i = 0, j, k;
-	float32_t sum;
-	size_t windowLen = sizeof(window) / sizeof(float32_t);
+	float32_t window[WINDOW_SIZE];
+	float32_t sum = 0.0f;
+	float32_t n = 0.0f;
+	uint8_t i, j;
 
 	while (1) {
 		if (dataReady) {
-			dataReady = false;
-			sum = k = 0;
 
 			normalize_data();
 
 			window[i] = Yin_getPitch(&yin, yinBuffer);
 
-			for (j = 0; j < windowLen; j++) {
-			  if (window[j] != -1) {
-				  sum += window[j];
-				  k++;
-			  }
+			if (i == WINDOW_SIZE - 1) {
+				for (j = 0; j < WINDOW_SIZE; j++) {
+					if (MIN_HZ < window[j] && window[j] < MAX_HZ) {
+						sum += window[j];
+						n++;
+					}
+				}
+				if (n > WINDOW_SIZE/2){
+					update_display(sum/n);
+				}
+				sum = 0;
+				n = 0;
 			}
 
-			if (sum > 0 && k > 0) {
-			  update_display( sum / k );
-			}
-
-			i = (i+1) % windowLen;
+			i = (i+1) % WINDOW_SIZE;
+			dataReady = false;
 		}
 	}
   }
