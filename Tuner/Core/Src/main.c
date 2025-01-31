@@ -42,13 +42,13 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define TEST_MODE 0
-#define BUFFER_SIZE 256
-#define SAMPLE_RATE 16000
+#define BUFFER_SIZE 512
+#define SAMPLE_RATE 8000
 #define THRESHOLD 0.1
-#define MIN_FREQ 65.41
-#define MAX_FREQ 523.25
-#define A4 440.0
-#define ADC_MAX 4095.0
+#define MIN_FREQ 40
+#define MAX_FREQ 1400
+#define A4 440
+#define ADC_MAX 4095
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -115,13 +115,13 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 }
 
 int closest_note(float32_t pitchInHz) {
-    float32_t n = 12.0f * log2f(pitchInHz / A4);
+    float32_t n = 12.0f * log2f(pitchInHz / (float32_t) A4);
     n = roundf(fmodf(n, 12.0f));
     return ((int)n + 12) % 12;
 }
 
 int deviation_cents(float32_t pitchInHz) {
-	float32_t semitones = 12.0f * log2f(pitchInHz/A4);
+	float32_t semitones = 12.0f * log2f(pitchInHz / (float32_t) A4);
 	int nearest_semitone = roundf(semitones);
 	float32_t deviation = (semitones - nearest_semitone) * 100;
 	return (int)roundf(deviation);
@@ -200,13 +200,13 @@ void update_display(float32_t pitchInHz) {
 
 void normalize_data() {
 	for(int i=0; i < BUFFER_SIZE; i++) {
-		yinBuffer[i] = (float32_t)(2 * adcBufPtr[i] - ADC_MAX) / ADC_MAX;
+		yinBuffer[i] = (float32_t)(2 * adcBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
 	}
 }
 
 void normalize_test_data() {
 	for(int i=0; i < BUFFER_SIZE; i++) {
-		yinBuffer[i] = (float32_t)(2 * testBufPtr[i] - ADC_MAX) / ADC_MAX;
+		yinBuffer[i] = (float32_t)(2 * testBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
 	}
 }
 /* USER CODE END 0 */
@@ -263,11 +263,10 @@ int main(void)
   if (TEST_MODE) {
     while (1) {
     	testBufPtr = &sweepData[0];
-		for(int i = 0; i < (sizeof(sweepData)/sizeof(uint16_t)) / BUFFER_SIZE; i++) {
+		for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t); i++) {
 		  normalize_test_data();
 		  update_display(Yin_getPitch(&yin, yinBuffer));
-		  testBufPtr += BUFFER_SIZE;
-		  HAL_Delay(250);
+		  testBufPtr++;
 		}
 	}
   }
@@ -465,7 +464,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 3000-1;
+  htim2.Init.Period = 6000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
