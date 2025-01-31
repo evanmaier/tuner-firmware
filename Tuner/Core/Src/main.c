@@ -86,7 +86,7 @@ uint8_t dataReady;
 float32_t yinBuffer[BUFFER_SIZE];
 Yin yin;
 
-float32_t window[5] = {-1, -1, -1, -1, -1};
+float32_t window[] = {-1, -1, -1, -1, -1};
 
 uint16_t* testBufPtr;
 /* USER CODE END PV */
@@ -278,28 +278,25 @@ int main(void)
 
 	while (1) {
 		if (dataReady) {
+			dataReady = false;
+			sum = k = 0;
 
-		  dataReady = false;
+			normalize_data();
 
-		  normalize_data();
+			window[i] = Yin_getPitch(&yin, yinBuffer);
 
-		  window[i] = Yin_getPitch(&yin, yinBuffer);
-
-		  i = (i+1) % windowLen;
-
-		  sum = k = 0;
-
-		  for (j = 0; j < windowLen; j++) {
-			  if (window[j] > 0) {
+			for (j = 0; j < windowLen; j++) {
+			  if (window[j] != -1) {
 				  sum += window[j];
 				  k++;
 			  }
-		  }
+			}
 
-		  if (k  > 0) {
+			if (sum > 0 && k > 0) {
 			  update_display( sum / k );
-		  }
+			}
 
+			i = (i+1) % windowLen;
 		}
 	}
   }

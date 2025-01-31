@@ -41,13 +41,12 @@ void Yin_difference(Yin *yin, float32_t* buffer){
 void Yin_cumulativeMeanNormalizedDifference(Yin *yin){
 	int16_t tau;
 	float32_t runningSum = 0;
-	yin->yinBuffer[0] = 1;
 
 	/* Sum all the values in the autocorellation buffer and nomalise the result, replacing
 	 * the value in the autocorellation buffer with a cumulative mean of the normalised difference */
 	for (tau = yin->tauMin; tau < yin->tauMax; tau++) {
 		runningSum += yin->yinBuffer[tau];
-		yin->yinBuffer[tau] *= tau / runningSum;
+		yin->yinBuffer[tau] *= (float32_t)tau / runningSum;
 	}
 }
 
@@ -99,7 +98,7 @@ void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t thresh
 	yin->tauMax = sampleRate / fMin;
 
 	/* Allocate the autocorellation buffer and initialise it to zero */
-	yin->yinBuffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
+	yin->yinBuffer = (float32_t *) malloc(sizeof(float32_t)* bufferSize);
 
 	int16_t i;
 	for(i = 0; i < bufferSize; i++){
