@@ -7,59 +7,53 @@
 -------------------------------------------------------------------------------------------*/
 
 /**
- * Step 1: Calculates the squared difference of the signal with a shifted version of itself.
- * @param buffer Buffer of samples to process.
- *
- * This is the Yin algorithms tweak on autocorellation. Read http://audition.ens.fr/adc/pdf/2002_JASA_YIN.pdf
- * for more details on what is in here and why it's done this way.
+ * Step 1: Calculates the squared difference of the signal with a shifted version of itself
+ * @param yin: Initialized Yin structure
+ * @param buffer: Buffer of samples to process
  */
 void Yin_difference(Yin *yin, float32_t* buffer){
 	int16_t i;
 	int16_t tau;
 	float32_t delta;
 
-	/* Calculate the difference for difference shift values (tau) for the half of the samples */
+	/* Calculate the difference for each tau from tauMin to tauMax */
 	for(tau = yin->tauMin ; tau < yin->tauMax; tau++){
 
-		/* Take the difference of the signal with a shifted version of itself, then square it.
-		 * (This is the Yin algorithm's tweak on autocorellation) */
+		/* Take the difference of the signal with a shifted version of itself, then square it */
 		for(i = 0; i < yin->bufferSize - tau; i++){
 			delta = buffer[i] - buffer[i + tau];
-			yin->yinBuffer[tau] += delta * delta;
+			yin->dfBuffer[tau] += delta * delta;
 		}
 	}
 }
 
 
 /**
- * Step 2: Calculate the cumulative mean on the normalised difference calculated in step 1
- * @param yin #Yin structure with information about the signal
- *
- * This goes through the Yin autocorellation values and finds out roughly where shift is which
- * produced the smallest difference
+ * Step 2: Calculate the normalized cumulative mean of the difference calculated in step 1
+ * @param yin: Initialized Yin structure
  */
 void Yin_cumulativeMeanNormalizedDifference(Yin *yin){
 	int16_t tau;
 	float32_t runningSum = 0;
 
-	/* Sum all the values in the autocorellation buffer and nomalise the result, replacing
-	 * the value in the autocorellation buffer with a cumulative mean of the normalised difference */
+	/* Normalize the values in dfBuffer and store them in cmndfBuffer */
 	for (tau = yin->tauMin; tau < yin->tauMax; tau++) {
-		runningSum += yin->yinBuffer[tau];
-		yin->yinBuffer[tau] *= (float32_t)tau / runningSum;
+		runningSum += yin->dfBuffer[tau];
+		yin->cmndfBuffer[tau] = yin->dfBuffer[tau] * (float32_t)tau / runningSum;
 	}
 }
 
 /**
- * Step 3: Search through the normalised cumulative mean array and find values that are over the threshold
- * @return Shift (tau) which caused the best approximate autocorellation. -1 if no suitable value is found over the threshold.
+ * Step 3: Search through the CMNDF buffer and find values that are over the threshold
+ * @param yin: Initialized Yin structure
+ * @return: Tau which caused the best approximate auto-corellation or -1 if no suitable value is found
  */
 int16_t Yin_absoluteThreshold(Yin *yin){
 	int16_t tau;
 
 	for (tau = yin->tauMin; tau < yin->tauMax ; tau++) {
-		if (yin->yinBuffer[tau] < yin->threshold) {
-			while (tau + 1 < yin->tauMax && yin->yinBuffer[tau + 1] < yin->yinBuffer[tau]) {
+		if (yin->cmndfBuffer[tau] < yin->threshold) {
+			while (tau + 1 < yin->tauMax && yin->cmndfBuffer[tau + 1] < yin->cmndfBuffer[tau]) {
 				tau++;
 			}
 			return tau;
@@ -71,39 +65,33 @@ int16_t Yin_absoluteThreshold(Yin *yin){
 
 /**
  * Step 5: Interpolate the shift value (tau) to improve the pitch estimate.
- * @param  yin         [description]
- * @param  tauEstimate [description]
- * @return             [description]
- *
- * The 'best' shift value for autocorellation is most likely not an interger shift of the signal.
- * As we only autocorellated using integer shifts we should check that there isn't a better fractional
- * shift value.
+ * @param yin: Initialized Yin structure
+ * @param  tauEstimate: First Tau over threshold
+ * @return: Refined Tau estimate
  */
 float32_t Yin_parabolicInterpolation(Yin *yin, int16_t tauEstimate) {
-	float32_t a = yin->yinBuffer[tauEstimate - 1];
-	float32_t b = yin->yinBuffer[tauEstimate];
-	float32_t c = yin->yinBuffer[tauEstimate + 1];
-	return tauEstimate - (c - a) / (2.0f * (a + c - 2.0f * b));
+	float32_t a = yin->cmndfBuffer[tauEstimate - 1];
+	float32_t b = yin->cmndfBuffer[tauEstimate];
+	float32_t c = yin->cmndfBuffer[tauEstimate + 1];
+	float32_t alpha = a + c - 2.0f * b;
+	float32_t beta = (c - a) / 2.0f;
+	return tauEstimate - beta / (2.0f * alpha);
 }
 
 /* ------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------- PUBLIC FUNCTIONS
 -------------------------------------------------------------------------------------------*/
-void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t threshold, float32_t fMin, float32_t fMax){
-	/* Initialise the fields of the Yin structure passed in */
+void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t threshold){
+	/* Initialize the fields */
 	yin->bufferSize = bufferSize;
 	yin->threshold = threshold;
 	yin->sampleRate = sampleRate;
-	yin->tauMin = sampleRate / fMax;
-	yin->tauMax = sampleRate / fMin;
+	yin->tauMin = 10;
+	yin->tauMax = bufferSize/2;
 
-	/* Allocate the autocorellation buffer and initialise it to zero */
-	yin->yinBuffer = (float32_t *) malloc(sizeof(float32_t)* bufferSize);
-
-	int16_t i;
-	for(i = 0; i < bufferSize; i++){
-		yin->yinBuffer[i] = 0;
-	}
+	/* Allocate the buffers */
+	yin->dfBuffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
+	yin->cmndfBuffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
 }
 
 /**
@@ -115,14 +103,21 @@ void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t thresh
 float32_t Yin_getPitch(Yin *yin, float32_t* buffer){
 	int16_t tauEstimate = -1;
 	float32_t pitchInHertz = -1;
+	int16_t i;
+
+	/* Clear Buffers */
+	for(i = 0; i < yin -> tauMax; i++) {
+		yin->dfBuffer[i] = 0;
+		yin->cmndfBuffer[i] = 1;
+	}
 
 	/* Step 1: Calculates the squared difference of the signal with a shifted version of itself. */
 	Yin_difference(yin, buffer);
 
-	/* Step 2: Calculate the cumulative mean on the normalised difference calculated in step 1 */
+	/* Step 2: Calculate the normalized cumulative mean on the difference calculated in step 1 */
 	Yin_cumulativeMeanNormalizedDifference(yin);
 
-	/* Step 3: Search through the normalised cumulative mean array and find values that are over the threshold */
+	/* Step 3: Search through the normalized cumulative mean array and find values that are over the threshold */
 	tauEstimate = Yin_absoluteThreshold(yin);
 
 	/* Step 5: Interpolate the shift value (tau) to improve the pitch estimate. */

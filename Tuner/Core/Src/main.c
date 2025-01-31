@@ -45,8 +45,6 @@
 #define BUFFER_SIZE 512
 #define SAMPLE_RATE 8000
 #define THRESHOLD 0.1
-#define MIN_FREQ 40
-#define MAX_FREQ 1400
 #define A4 440
 #define ADC_MAX 4095
 /* Display Parameters */
@@ -248,7 +246,7 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
   HAL_TIM_Base_Start(&htim2);
 
-  Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD, MIN_FREQ, MAX_FREQ);
+  Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD);
 
   ST7735_Init();
   ST7735_FillScreenFast(ST7735_BLACK);
@@ -263,7 +261,7 @@ int main(void)
   if (TEST_MODE) {
     while (1) {
     	testBufPtr = &sweepData[0];
-		for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t); i++) {
+		for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - BUFFER_SIZE; i++) {
 		  normalize_test_data();
 		  update_display(Yin_getPitch(&yin, yinBuffer));
 		  testBufPtr++;
