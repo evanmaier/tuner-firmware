@@ -47,9 +47,7 @@
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
-#define WINDOW_SIZE 5
-#define MIN_HZ 60
-#define MAX_HZ 700
+#define WINDOW_SIZE 3
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -217,63 +215,63 @@ void normalize_test_data() {
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
+	/* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_SPI2_Init();
-  MX_ADC1_Init();
-  MX_TIM2_Init();
-  /* USER CODE BEGIN 2 */
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
-  HAL_TIM_Base_Start(&htim2);
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_SPI2_Init();
+	MX_ADC1_Init();
+	MX_TIM2_Init();
+	/* USER CODE BEGIN 2 */
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
+	HAL_TIM_Base_Start(&htim2);
 
-  Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD);
+	Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD);
 
-  ST7735_Init();
-  ST7735_FillScreenFast(ST7735_BLACK);
-  ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET, PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
-  /* USER CODE END 2 */
+	ST7735_Init();
+	ST7735_FillScreenFast(ST7735_BLACK);
+	ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET, PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
+	/* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  /* Real Code */
+	/* Infinite loop */
 
-  /* Test Code */
-  if (TEST_MODE) {
-    while (1) {
-    	testBufPtr = &sweepData[0];
-		for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - BUFFER_SIZE; i++) {
-		  normalize_test_data();
-		  update_display(Yin_getPitch(&yin, yinBuffer));
-		  testBufPtr++;
+	/* Test Code */
+	if (TEST_MODE) {
+		while (1) {
+			testBufPtr = &sweepData[0];
+			for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - BUFFER_SIZE; i++) {
+			  normalize_test_data();
+			  update_display(Yin_getPitch(&yin, yinBuffer));
+			  testBufPtr++;
+			}
 		}
 	}
-  }
-  if (!TEST_MODE) {
+
+    /* Real Code */
 	float32_t window[WINDOW_SIZE];
 	float32_t sum = 0.0f;
 	float32_t n = 0.0f;
-	uint8_t i, j;
+	uint8_t i = 0;
+	uint8_t j;
 
 	while (1) {
 		if (dataReady) {
@@ -282,16 +280,20 @@ int main(void)
 
 			window[i] = Yin_getPitch(&yin, yinBuffer);
 
+			/* Smoothing */
 			if (i == WINDOW_SIZE - 1) {
+
 				for (j = 0; j < WINDOW_SIZE; j++) {
-					if (MIN_HZ < window[j] && window[j] < MAX_HZ) {
+					if (window[j] > 0) {
 						sum += window[j];
 						n++;
 					}
 				}
+
 				if (n > WINDOW_SIZE/2){
 					update_display(sum/n);
 				}
+
 				sum = 0;
 				n = 0;
 			}
@@ -300,14 +302,6 @@ int main(void)
 			dataReady = false;
 		}
 	}
-  }
-
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-
-  /* USER CODE END 3 */
 }
 
 /**

@@ -7,8 +7,7 @@
 typedef struct _Yin {
 	int16_t sampleRate;
 	int16_t bufferSize;
-	float32_t* dfBuffer;
-	float32_t* cmndfBuffer;
+	float32_t* buffer;
 	float32_t threshold;
 	uint16_t tauMax;
 	uint16_t tauMin;
