@@ -41,7 +41,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TEST_MODE 0
+#define TEST_MODE 1
 #define BUFFER_SIZE 256
 #define SAMPLE_RATE 8000
 #define THRESHOLD 0.1
@@ -262,6 +262,7 @@ int main(void)
 			  normalize_test_data();
 			  update_display(Yin_getPitch(&yin, yinBuffer));
 			  testBufPtr++;
+			  HAL_Delay(100);
 			}
 		}
 	}

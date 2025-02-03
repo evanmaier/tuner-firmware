@@ -9,21 +9,56 @@
 /**
  * Step 1: Calculates the squared difference of the signal with a shifted version of itself
  * @param yin	 Initialized Yin structure
- * @param buffer Buffer of samples to process
+ * @param yinBuffer Buffer of samples to process
  */
 void Yin_difference(Yin *yin, float32_t* dataBuffer){
-	int16_t i;
-	int16_t tau;
-	float32_t delta;
+	// Power term calculation
+	yin->powerTerms[0] = 0;
+	for (int j = 0; j < yin->bufferSize; ++j) {
+		yin->powerTerms[0] += dataBuffer[j] * dataBuffer[j];
+	}
 
-	/* Calculate the difference for each tau from tauMin to tauMax */
-	for(tau = yin->tauMin ; tau < yin->tauMax; tau++){
+	for (int tau = 1; tau < yin->bufferSize; ++tau) {
+		yin->powerTerms[tau] = yin->powerTerms[tau-1]
+							 - dataBuffer[tau-1] * dataBuffer[tau-1]
+							 + dataBuffer[tau + yin->bufferSize]
+							 * dataBuffer[tau + yin->bufferSize];
+	}
 
-		/* Take the difference of the signal with a shifted version of itself, then square it */
-		for(i = 0; i < yin->bufferSize - tau; i++){
-			delta = dataBuffer[i] - dataBuffer[i + tau];
-			yin->buffer[tau] += delta * delta;
-		}
+	// Convert to frequency domain
+	arm_rfft_fast_f32(yin->fftInstance, dataBuffer, yin->fftBuffer, 0);
+
+	// Create time-reversed version of signal
+	for (int j = 0; j < yin->bufferSize; ++j) {
+		yin->kernel[j] = dataBuffer[(yin->bufferSize - 1) - j];
+	}
+
+	arm_rfft_fast_f32(yin->fftInstance, yin->kernel, yin->kernel, 0);
+
+	// Autocorrelation in frequency domain
+	yin->acfBuffer[0] = yin->fftBuffer[0] * yin->kernel[0];
+	yin->acfBuffer[1] = yin->fftBuffer[1] * yin->kernel[1];
+
+	for (int k = 1; k < yin->bufferSize/2; k++) {
+		int i = 2*k;
+
+		float32_t realA = yin->fftBuffer[i];
+		float32_t imagA = yin->fftBuffer[i+1];
+
+		float32_t realB = yin->kernel[i];
+		float32_t imagB = yin->kernel[i+1];
+
+		yin->acfBuffer[i] = realA * realB - imagA * imagB;
+		yin->acfBuffer[i+1] = imagA * realB + realA * imagB;
+	}
+
+	// Convert back to time domain
+	arm_rfft_fast_f32(yin->fftInstance, yin->acfBuffer, yin->acfBuffer, 1);
+
+	// Final difference function
+	for (int j = 0; j < yin->tauMax; ++j) {
+		yin->yinBuffer[j] = yin->powerTerms[0] + yin->powerTerms[j] - 2.0f
+						  * yin->acfBuffer[yin->bufferSize - 1 + j];
 	}
 }
 
@@ -39,12 +74,12 @@ void Yin_cumulativeMeanNormalizedDifference(Yin *yin){
 	/* Normalize the values using the sum of previous difference values */
 	for (tau = yin->tauMin; tau < yin->tauMax; tau++) {
 
-		runningSum += yin->buffer[tau];
+		runningSum += yin->yinBuffer[tau];
 
 		if (runningSum > 0) {
-			yin->buffer[tau] = yin->buffer[tau] * (float32_t)tau / runningSum;
+			yin->yinBuffer[tau] = yin->yinBuffer[tau] * (float32_t)tau / runningSum;
 		} else {
-			yin->buffer[tau] = 1;
+			yin->yinBuffer[tau] = 1;
 		}
 	}
 }
@@ -58,16 +93,15 @@ int16_t Yin_absoluteThreshold(Yin *yin){
 	int16_t tau;
 
 	for (tau = yin->tauMin; tau < yin->tauMax ; tau++) {
-
-		if (yin->buffer[tau] < yin->threshold) {
-
-			while (tau + 1 < yin->tauMax && yin->buffer[tau + 1] < yin->buffer[tau]) {
+		if (yin->yinBuffer[tau] < yin->threshold) {
+			while (tau + 1 < yin->tauMax && yin->yinBuffer[tau + 1] < yin->yinBuffer[tau]) {
 				tau++;
 			}
+			yin->probability = 1 - yin->yinBuffer[tau];
 			return tau;
 		}
 	}
-
+	yin->probability = 0;
 	return -1;
 }
 
@@ -78,9 +112,9 @@ int16_t Yin_absoluteThreshold(Yin *yin){
  * @return 				Refined Tau estimate
  */
 float32_t Yin_parabolicInterpolation(Yin *yin, int16_t tauEstimate) {
-	float32_t a = yin->buffer[tauEstimate - 1];
-	float32_t b = yin->buffer[tauEstimate];
-	float32_t c = yin->buffer[tauEstimate + 1];
+	float32_t a = yin->yinBuffer[tauEstimate - 1];
+	float32_t b = yin->yinBuffer[tauEstimate];
+	float32_t c = yin->yinBuffer[tauEstimate + 1];
 	float32_t alpha = a + c - 2.0f * b;
 	float32_t beta = (c - a) / 2.0f;
 	return tauEstimate - beta / (2.0f * alpha);
@@ -102,7 +136,16 @@ void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t thresh
 	yin->sampleRate = sampleRate;
 	yin->tauMin = 10;
 	yin->tauMax = bufferSize/2;
-	yin->buffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
+	yin->probability = 0.0f;
+
+	yin->yinBuffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
+	yin->powerTerms = (float32_t *) malloc(sizeof(float32_t)* bufferSize);
+	yin->fftBuffer = (float32_t *) malloc(sizeof(float32_t)* bufferSize);
+	yin->acfBuffer = (float32_t *) malloc(sizeof(float32_t)* bufferSize);
+	yin->kernel = (float32_t *) malloc(sizeof(float32_t)* bufferSize);
+
+	yin->fftInstance = (arm_rfft_fast_instance_f32 *)malloc(sizeof(arm_rfft_fast_instance_f32));
+	arm_rfft_fast_init_f32(yin->fftInstance, bufferSize);
 }
 
 /**
@@ -118,7 +161,7 @@ float32_t Yin_getPitch(Yin *yin, float32_t* buffer){
 
 	/* Clear Buffer */
 	for(i = 0; i < yin -> tauMax; i++) {
-		yin->buffer[i] = 0;
+		yin->yinBuffer[i] = 0;
 	}
 
 	/* Step 1: Calculates the squared difference of the signal with a shifted version of itself. */
