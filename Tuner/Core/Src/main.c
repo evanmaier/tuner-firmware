@@ -41,13 +41,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TEST_MODE 1
-#define BUFFER_SIZE 256
+#define TEST_MODE 0
+#define ADC_SIZE 512
+#define YIN_SIZE 256
+#define HOP_SIZE 32
 #define SAMPLE_RATE 8000
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
-#define WINDOW_SIZE 3
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -78,14 +79,16 @@ SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-uint16_t adcData[BUFFER_SIZE*2];
+uint16_t adcData[ADC_SIZE*2];
 uint16_t* adcBufPtr;
 uint8_t dataReady;
 
-float32_t yinBuffer[BUFFER_SIZE];
+float32_t yinBuffer[YIN_SIZE];
 Yin yin;
 
 uint16_t* testBufPtr;
+
+float32_t nData[ADC_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -107,7 +110,7 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-	adcBufPtr = &adcData[BUFFER_SIZE];
+	adcBufPtr = &adcData[ADC_SIZE];
 	dataReady = true;
 }
 
@@ -196,15 +199,33 @@ void update_display(float32_t pitchInHz) {
 }
 
 void normalize_data() {
-	for(int i=0; i < BUFFER_SIZE; i++) {
-		yinBuffer[i] = (float32_t)(2 * adcBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
+	for(int i=0; i < ADC_SIZE; i++) {
+		nData[i] = (float32_t)(2 * adcBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
 	}
 }
 
 void normalize_test_data() {
-	for(int i=0; i < BUFFER_SIZE; i++) {
+	for(int i=0; i < ADC_SIZE; i++) {
 		yinBuffer[i] = (float32_t)(2 * testBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
 	}
+}
+
+float32_t avg_pitch() {
+	float32_t n = 0.0f;
+	float32_t runningSum = 0.0f;
+	float32_t pitch;
+	for(int i = 0; i < YIN_SIZE/HOP_SIZE; i++) {
+		memcpy(yinBuffer, &nData[i*HOP_SIZE], sizeof(float32_t)*YIN_SIZE);
+		pitch = Yin_getPitch(&yin, yinBuffer);
+		if (yin.probability > 0.95) {
+			runningSum += pitch;
+			n++;
+		}
+	}
+	if (n > 0) {
+		return runningSum/n;
+	}
+	return -1;
 }
 /* USER CODE END 0 */
 
@@ -242,10 +263,10 @@ int main(void)
 	MX_ADC1_Init();
 	MX_TIM2_Init();
 	/* USER CODE BEGIN 2 */
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, ADC_SIZE*2);
 	HAL_TIM_Base_Start(&htim2);
 
-	Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD);
+	Yin_init(&yin, YIN_SIZE, SAMPLE_RATE, THRESHOLD);
 
 	ST7735_Init();
 	ST7735_FillScreenFast(ST7735_BLACK);
@@ -256,49 +277,34 @@ int main(void)
 
 	/* Test Code */
 	if (TEST_MODE) {
+		float32_t pitch;
 		while (1) {
 			testBufPtr = &sweepData[0];
-			for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - BUFFER_SIZE; i++) {
+			for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - YIN_SIZE; i++) {
 			  normalize_test_data();
-			  update_display(Yin_getPitch(&yin, yinBuffer));
+			  pitch = Yin_getPitch(&yin, yinBuffer);
+			  if(yin.probability > 0.95){
+				  update_display(pitch);
+			  }
 			  testBufPtr ++;
 			}
 		}
 	}
 
     /* Real Code */
-	float32_t window[WINDOW_SIZE];
-	float32_t sum = 0.0f;
-	float32_t n = 0.0f;
-	uint8_t i = 0;
-	uint8_t j;
-
+	float32_t pitch;
+	uint8_t ndFull = false;
 	while (1) {
 		if (dataReady) {
-
-			normalize_data();
-
-			window[i] = Yin_getPitch(&yin, yinBuffer);
-
-			/* Smoothing */
-			if (i == WINDOW_SIZE - 1) {
-
-				for (j = 0; j < WINDOW_SIZE; j++) {
-					if (window[j] > 0) {
-						sum += window[j];
-						n++;
-					}
+			// Don't run avg_pitch on half full nData
+			if (ndFull) {
+				normalize_data();
+				pitch = avg_pitch();
+				if (pitch > 0) {
+					update_display(pitch);
 				}
-
-				if (n > WINDOW_SIZE/2){
-					update_display(sum/n);
-				}
-
-				sum = 0;
-				n = 0;
 			}
-
-			i = (i+1) % WINDOW_SIZE;
+			ndFull = true;
 			dataReady = false;
 		}
 	}
