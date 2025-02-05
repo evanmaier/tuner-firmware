@@ -261,8 +261,7 @@ int main(void)
 			for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - BUFFER_SIZE; i++) {
 			  normalize_test_data();
 			  update_display(Yin_getPitch(&yin, yinBuffer));
-			  testBufPtr++;
-			  HAL_Delay(100);
+			  testBufPtr ++;
 			}
 		}
 	}

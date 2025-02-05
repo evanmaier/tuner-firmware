@@ -7,15 +7,9 @@
 typedef struct _Yin {
 	int16_t sampleRate;
 	int16_t bufferSize;
-	uint16_t tauMax;
-	uint16_t tauMin;
 	float32_t threshold;
 	float32_t probability;
-	float32_t* yinBuffer;
-	float32_t* powerTerms;
-	float32_t* fftBuffer;
-	float32_t* acfBuffer;
-	float32_t* kernel;
+	float32_t* buffer;
 	arm_rfft_fast_instance_f32 *fftInstance;
 } Yin;
 
