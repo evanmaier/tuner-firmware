@@ -47,7 +47,7 @@
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
-#define WINDOW_SIZE 3
+#define WINDOW_SIZE 5
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -86,6 +86,8 @@ float32_t yinBuffer[BUFFER_SIZE];
 Yin yin;
 
 uint16_t* testBufPtr;
+
+float32_t avgWindow[WINDOW_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -206,6 +208,21 @@ void normalize_test_data() {
 		yinBuffer[i] = (float32_t)(2 * testBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
 	}
 }
+
+float32_t avg_pitch() {
+	float32_t runningSum = 0.0f;
+	float32_t n = 0.0f;
+	for(int i=0; i<WINDOW_SIZE; i++) {
+		if (avgWindow[i] > 0) {
+			runningSum += avgWindow[i];
+			n++;
+		}
+	}
+	if (n > 0) {
+		return runningSum/n;
+	}
+	return -1;
+}
 /* USER CODE END 0 */
 
 /**
@@ -267,38 +284,17 @@ int main(void)
 	}
 
     /* Real Code */
-	float32_t window[WINDOW_SIZE];
-	float32_t sum = 0.0f;
-	float32_t n = 0.0f;
-	uint8_t i = 0;
-	uint8_t j;
-
+	float32_t pitch;
 	while (1) {
 		if (dataReady) {
-
 			normalize_data();
 
-			window[i] = Yin_getPitch(&yin, yinBuffer);
+			pitch = Yin_getPitch(&yin, yinBuffer);
 
-			/* Smoothing */
-			if (i == WINDOW_SIZE - 1) {
-
-				for (j = 0; j < WINDOW_SIZE; j++) {
-					if (window[j] > 0) {
-						sum += window[j];
-						n++;
-					}
-				}
-
-				if (n > WINDOW_SIZE/2){
-					update_display(sum/n);
-				}
-
-				sum = 0;
-				n = 0;
+			if (pitch > 0) {
+				update_display(pitch);
 			}
 
-			i = (i+1) % WINDOW_SIZE;
 			dataReady = false;
 		}
 	}
