@@ -5,7 +5,7 @@
 #include "arm_math.h"
 
 typedef struct _Yin {
-	int16_t sampleRate;
+	float32_t sampleRate;
 	int16_t bufferSize;
 	float32_t* buffer;
 	float32_t threshold;
@@ -13,7 +13,7 @@ typedef struct _Yin {
 	uint16_t tauMin;
 } Yin;
 
-void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t threshold);
+void Yin_init(Yin *yin, int16_t bufferSize, float32_t sampleRate, float32_t threshold);
 
 float32_t Yin_getPitch(Yin *yin, float32_t* buffer);
 

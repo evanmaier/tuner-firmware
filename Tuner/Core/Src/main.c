@@ -43,7 +43,7 @@
 /* USER CODE BEGIN PD */
 #define TEST_MODE 0
 #define BUFFER_SIZE 256
-#define SAMPLE_RATE 8000
+#define SAMPLE_RATE 8959.403
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
@@ -456,7 +456,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 12000-1;
+  htim2.Init.Period = 10715-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)

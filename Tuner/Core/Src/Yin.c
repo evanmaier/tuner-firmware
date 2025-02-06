@@ -83,7 +83,7 @@ float32_t Yin_parabolicInterpolation(Yin *yin, int16_t tauEstimate) {
 	float32_t c = yin->buffer[tauEstimate + 1];
 	float32_t alpha = a + c - 2.0f * b;
 	float32_t beta = (c - a) / 2.0f;
-	return tauEstimate - beta / (2.0f * alpha);
+	return (float32_t)tauEstimate - beta / (2.0f * alpha);
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -96,7 +96,7 @@ float32_t Yin_parabolicInterpolation(Yin *yin, int16_t tauEstimate) {
  * @param sampleRate 	ADC sample rate
  * @param threshold 	Minimum acceptable accuracy, YIN paper recommends 0.1 to 0.15
  */
-void Yin_init(Yin *yin, int16_t bufferSize, int16_t sampleRate, float32_t threshold){
+void Yin_init(Yin *yin, int16_t bufferSize, float32_t sampleRate, float32_t threshold){
 	yin->bufferSize = bufferSize;
 	yin->threshold = threshold;
 	yin->sampleRate = sampleRate;
