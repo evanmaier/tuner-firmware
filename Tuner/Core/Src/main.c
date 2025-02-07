@@ -42,8 +42,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define TEST_MODE 0
-#define BUFFER_SIZE 256
-#define SAMPLE_RATE 8959.403
+#define BUFFER_SIZE 915
+#define SAMPLE_RATE 32000
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
@@ -88,6 +88,7 @@ Yin yin;
 uint16_t* testBufPtr;
 
 float32_t avgWindow[WINDOW_SIZE];
+uint32_t start, total;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -232,33 +233,33 @@ float32_t avg_pitch() {
 int main(void)
 {
 
-	/* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_DMA_Init();
-	MX_SPI2_Init();
-	MX_ADC1_Init();
-	MX_TIM2_Init();
-	/* USER CODE BEGIN 2 */
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_SPI2_Init();
+  MX_ADC1_Init();
+  MX_TIM2_Init();
+  /* USER CODE BEGIN 2 */
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
 	HAL_TIM_Base_Start(&htim2);
 
@@ -267,9 +268,10 @@ int main(void)
 	ST7735_Init();
 	ST7735_FillScreenFast(ST7735_BLACK);
 	ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET, PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
-	/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
-	/* Infinite loop */
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 
 	/* Test Code */
 	if (TEST_MODE) {
@@ -288,9 +290,9 @@ int main(void)
 	while (1) {
 		if (dataReady) {
 			normalize_data();
-
+			start = HAL_GetTick();
 			pitch = Yin_getPitch(&yin, yinBuffer);
-
+			total = HAL_GetTick()-start;
 			if (pitch > 0) {
 				update_display(pitch);
 			}
@@ -298,6 +300,11 @@ int main(void)
 			dataReady = false;
 		}
 	}
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+  /* USER CODE END 3 */
 }
 
 /**
@@ -386,7 +393,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_112CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -456,7 +463,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 10715-1;
+  htim2.Init.Period = 3000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
