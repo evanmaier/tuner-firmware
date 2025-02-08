@@ -9,6 +9,7 @@ typedef struct _Yin {
 	int16_t bufferSize;
 	float32_t* buffer;
 	float32_t threshold;
+	float32_t confidence;
 	uint16_t tauMax;
 	uint16_t tauMin;
 } Yin;

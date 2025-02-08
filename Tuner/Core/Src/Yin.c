@@ -38,12 +38,11 @@ void Yin_cumulativeMeanNormalizedDifference(Yin *yin){
 
 	/* Normalize the values using the sum of previous difference values */
 	for (tau = yin->tauMin; tau < yin->tauMax; tau++) {
-
 		runningSum += yin->buffer[tau];
-
 		if (runningSum > 0) {
-			yin->buffer[tau] = yin->buffer[tau] * (float32_t)tau / runningSum;
-		} else {
+			yin->buffer[tau] *= ((float32_t)tau) / runningSum;
+		}
+		else {
 			yin->buffer[tau] = 1;
 		}
 	}
@@ -56,18 +55,16 @@ void Yin_cumulativeMeanNormalizedDifference(Yin *yin){
  */
 int16_t Yin_absoluteThreshold(Yin *yin){
 	int16_t tau;
-
 	for (tau = yin->tauMin; tau < yin->tauMax ; tau++) {
-
 		if (yin->buffer[tau] < yin->threshold) {
-
 			while (tau + 1 < yin->tauMax && yin->buffer[tau + 1] < yin->buffer[tau]) {
 				tau++;
 			}
+			yin->confidence = 1 - yin->buffer[tau];
 			return tau;
 		}
 	}
-
+	yin->confidence = 0;
 	return -1;
 }
 
@@ -101,7 +98,7 @@ void Yin_init(Yin *yin, int16_t bufferSize, float32_t sampleRate, float32_t thre
 	yin->threshold = threshold;
 	yin->sampleRate = sampleRate;
 	yin->tauMin = sampleRate/350;
-	yin->tauMax = bufferSize/2;
+	yin->tauMax = sampleRate/70;
 	yin->buffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
 }
 

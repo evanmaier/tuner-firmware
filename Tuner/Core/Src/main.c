@@ -47,7 +47,7 @@
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
-#define WINDOW_SIZE 5
+#define WINDOW_SIZE 3
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
@@ -87,9 +87,9 @@ Yin yin;
 
 uint16_t* testBufPtr;
 
-float32_t avgWindow[WINDOW_SIZE];
-uint32_t start, total;
-float32_t pitch;
+float32_t window[WINDOW_SIZE];
+
+uint32_t start, diff;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,17 +115,14 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	dataReady = true;
 }
 
-int closest_note(float32_t pitchInHz) {
-    float32_t n = 12.0f * log2f(pitchInHz / (float32_t) A4);
-    n = roundf(fmodf(n, 12.0f));
-    return ((int)n + 12) % 12;
+int closest_note(float32_t pitch) {
+    pitch = roundf(fmodf(pitch, 12.0f));
+    return ((int)pitch + 12) % 12;
 }
 
-int deviation_cents(float32_t pitchInHz) {
-	float32_t semitones = 12.0f * log2f(pitchInHz / (float32_t) A4);
-	int nearest_semitone = roundf(semitones);
-	float32_t deviation = (semitones - nearest_semitone) * 100;
-	return (int)roundf(deviation);
+int deviation_cents(float32_t pitch) {
+	int nearest_semitone = roundf(pitch);
+	return (int)roundf((pitch - nearest_semitone) * 100.0f);
 }
 
 void draw_note(const uint16_t* note, uint8_t isSharp) {
@@ -155,10 +152,10 @@ void draw_bar(int cents){
 	}
 }
 
-void update_display(float32_t pitchInHz) {
-	draw_bar(deviation_cents(pitchInHz));
+void update_display(float32_t pitch) {
+	draw_bar(deviation_cents(pitch));
 
-	switch (closest_note(pitchInHz))
+	switch (closest_note(pitch))
 	{
 	case 0:
 		draw_note(image_data_Font_0x41, false);
@@ -211,18 +208,23 @@ void normalize_test_data() {
 	}
 }
 
-float32_t avg_pitch() {
-	float32_t runningSum = 0.0f;
-	float32_t n = 0.0f;
-	for(int i=0; i<WINDOW_SIZE; i++) {
-		if (avgWindow[i] > 0) {
-			runningSum += avgWindow[i];
+float32_t smoothing(float32_t pitch) {
+	float32_t sum = 0;
+	float32_t n = 0;
+
+	// Take average over window
+	for(uint8_t i = 0; i<WINDOW_SIZE; i++) {
+		if (window[i] != -1) {
+			sum += window[i];
 			n++;
 		}
 	}
+
+	// Return average if window is not empty
 	if (n > 0) {
-		return runningSum/n;
+		return sum/n;
 	}
+
 	return -1;
 }
 /* USER CODE END 0 */
@@ -287,16 +289,37 @@ int main(void)
 	}
 
     /* Real Code */
+	float32_t pitch;
+	uint8_t i = 0;
 	while (1) {
 		if (dataReady) {
+			// Center and normalize ADC data between -1.0 and 1.0
 			normalize_data();
-			//start = HAL_GetTick();
+
+			// YIN pitch detection (Hz)
+			start = HAL_GetTick();
 			pitch = Yin_getPitch(&yin, yinBuffer);
-			//total = HAL_GetTick()-start;
-			if (pitch > 0) {
+			diff = HAL_GetTick()-start;
+
+			if (yin.confidence > 0.95) {
+				// Convert to semitones
+				pitch = 12.0f * log2f(pitch / (float32_t) A4);
+
+				// Add to window
+				window[i] = pitch;
+
+				// Average over window
+				pitch = smoothing(pitch);
+
+				// Display current pitch
 				update_display(pitch);
 			}
 
+			else {
+				window[i] = -1;
+			}
+
+			i = (i+1) % WINDOW_SIZE;
 			dataReady = false;
 		}
 	}
