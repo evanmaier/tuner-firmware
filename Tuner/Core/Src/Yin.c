@@ -100,7 +100,7 @@ void Yin_init(Yin *yin, int16_t bufferSize, float32_t sampleRate, float32_t thre
 	yin->bufferSize = bufferSize;
 	yin->threshold = threshold;
 	yin->sampleRate = sampleRate;
-	yin->tauMin = 10;
+	yin->tauMin = sampleRate/350;
 	yin->tauMax = bufferSize/2;
 	yin->buffer = (float32_t *) malloc(sizeof(float32_t)* yin->tauMax);
 }
@@ -114,12 +114,6 @@ void Yin_init(Yin *yin, int16_t bufferSize, float32_t sampleRate, float32_t thre
 float32_t Yin_getPitch(Yin *yin, float32_t* buffer){
 	int16_t tauEstimate = -1;
 	float32_t pitchInHertz = -1;
-	int16_t i;
-
-	/* Clear Buffer */
-	for(i = 0; i < yin -> tauMax; i++) {
-		yin->buffer[i] = 0;
-	}
 
 	/* Step 1: Calculates the squared difference of the signal with a shifted version of itself. */
 	Yin_difference(yin, buffer);

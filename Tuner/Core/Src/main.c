@@ -42,7 +42,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define TEST_MODE 0
-#define BUFFER_SIZE 915
+#define BUFFER_SIZE 916
 #define SAMPLE_RATE 32000
 #define THRESHOLD 0.1
 #define A4 440
@@ -89,6 +89,7 @@ uint16_t* testBufPtr;
 
 float32_t avgWindow[WINDOW_SIZE];
 uint32_t start, total;
+float32_t pitch;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -286,13 +287,12 @@ int main(void)
 	}
 
     /* Real Code */
-	float32_t pitch;
 	while (1) {
 		if (dataReady) {
 			normalize_data();
-			start = HAL_GetTick();
+			//start = HAL_GetTick();
 			pitch = Yin_getPitch(&yin, yinBuffer);
-			total = HAL_GetTick()-start;
+			//total = HAL_GetTick()-start;
 			if (pitch > 0) {
 				update_display(pitch);
 			}
