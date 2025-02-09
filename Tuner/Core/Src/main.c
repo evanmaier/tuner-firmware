@@ -21,12 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdlib.h>
-#include <images.h>
 #include "arm_math.h"
 #include "st7735.h"
 #include "Yin.h"
 #include "audio_data.h"
+#include "display.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,20 +42,6 @@
 #define A4 440
 #define ADC_MAX 4095
 #define WINDOW_SIZE 3
-/* Display Parameters */
-#define DISPLAY_WIDTH 128
-#define DISPLAY_HEIGHT 160
-#define PADDING 10
-/* Bar Parameters */
-#define BAR_HEIGHT 40
-#define BAR_WIDTH 50
-#define CENTER_WIDTH 4
-#define CENTER_OFFSET 2
-/* Note Parameters */
-#define NOTE_WIDTH 56
-#define NOTE_HEIGHT 84
-#define SHARP_WIDTH 20
-#define SHARP_HEIGHT 43
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -108,87 +93,6 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	adcBufPtr = &adcData[BUFFER_SIZE];
 	dataReady = 1;
-}
-
-int closest_note(float32_t pitch) {
-    pitch = roundf(fmodf(pitch, 12.0f));
-    return ((int)pitch + 12) % 12;
-}
-
-int deviation_cents(float32_t pitch) {
-	int nearest_semitone = roundf(pitch);
-	return (int)roundf((pitch - nearest_semitone) * 100.0f);
-}
-
-void draw_note(const uint16_t* note, uint8_t isSharp) {
-	ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING,NOTE_WIDTH, NOTE_HEIGHT, note);
-	if (isSharp) {
-		ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
-	} else {
-		ST7735_FillRectangleFast((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, ST7735_BLACK);
-	}
-}
-
-void draw_bar(int cents){
-	uint16_t x = PADDING;
-	if (cents < 0) {
-		cents = abs(cents);
-		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH - cents, BAR_HEIGHT, ST7735_BLACK);
-		x += BAR_WIDTH - cents;
-		ST7735_FillRectangleFast(x, PADDING, cents, BAR_HEIGHT, ST7735_RED);
-		x += abs(cents) + CENTER_WIDTH + 2*CENTER_OFFSET;
-		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
-	} else {
-		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
-		x += BAR_WIDTH + CENTER_WIDTH + 2*CENTER_OFFSET;
-		ST7735_FillRectangleFast(x, PADDING, cents, BAR_HEIGHT, ST7735_GREEN);
-		x += cents;
-		ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH - cents, BAR_HEIGHT, ST7735_BLACK);
-	}
-}
-
-void update_display(float32_t pitch) {
-	draw_bar(deviation_cents(pitch));
-
-	switch (closest_note(pitch))
-	{
-	case 0:
-		draw_note(image_data_Font_0x41, 0);
-		break;
-	case 1:
-		draw_note(image_data_Font_0x41, 1);
-		break;
-	case 2:
-		draw_note(image_data_Font_0x42, 0);
-		break;
-	case 3:
-		draw_note(image_data_Font_0x43, 0);
-		break;
-	case 4:
-		draw_note(image_data_Font_0x43, 1);
-		break;
-	case 5:
-		draw_note(image_data_Font_0x44, 0);
-		break;
-	case 6:
-		draw_note(image_data_Font_0x44, 1);
-		break;
-	case 7:
-		draw_note(image_data_Font_0x45, 0);
-		break;
-	case 8:
-		draw_note(image_data_Font_0x46, 0);
-		break;
-	case 9:
-		draw_note(image_data_Font_0x46, 1);
-		break;
-	case 10:
-		draw_note(image_data_Font_0x47, 0);
-		break;
-	case 11:
-		draw_note(image_data_Font_0x47, 1);
-		break;
-	}
 }
 
 void normalize_data() {
@@ -260,13 +164,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
 	HAL_TIM_Base_Start(&htim2);
-
 	Yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, THRESHOLD);
-
 	ST7735_Init();
-	ST7735_FillScreenFast(ST7735_BLACK);
-	ST7735_FillRectangleFast(PADDING + BAR_WIDTH + CENTER_OFFSET, PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
-  /* USER CODE END 2 */
+	display_init();
+	/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -283,7 +184,7 @@ int main(void)
 		}
 	}
 
-    /* Real Code */
+  /* Real Code */
 	float32_t pitch;
 	uint8_t i = 0;
 	while (1) {
