@@ -21,17 +21,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "arm_math.h"
-#include <math.h>
-#include <string.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <images.h>
+#include "arm_math.h"
 #include "st7735.h"
-#include "fonts.h"
 #include "Yin.h"
 #include "audio_data.h"
-#include <stdlib.h>
-#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -107,12 +102,12 @@ static void MX_TIM2_Init(void);
 /* USER CODE BEGIN 0 */
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
 	adcBufPtr = &adcData[0];
-	dataReady = true;
+	dataReady = 1;
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	adcBufPtr = &adcData[BUFFER_SIZE];
-	dataReady = true;
+	dataReady = 1;
 }
 
 int closest_note(float32_t pitch) {
@@ -158,40 +153,40 @@ void update_display(float32_t pitch) {
 	switch (closest_note(pitch))
 	{
 	case 0:
-		draw_note(image_data_Font_0x41, false);
+		draw_note(image_data_Font_0x41, 0);
 		break;
 	case 1:
-		draw_note(image_data_Font_0x41, true);
+		draw_note(image_data_Font_0x41, 1);
 		break;
 	case 2:
-		draw_note(image_data_Font_0x42, false);
+		draw_note(image_data_Font_0x42, 0);
 		break;
 	case 3:
-		draw_note(image_data_Font_0x43, false);
+		draw_note(image_data_Font_0x43, 0);
 		break;
 	case 4:
-		draw_note(image_data_Font_0x43, true);
+		draw_note(image_data_Font_0x43, 1);
 		break;
 	case 5:
-		draw_note(image_data_Font_0x44, false);
+		draw_note(image_data_Font_0x44, 0);
 		break;
 	case 6:
-		draw_note(image_data_Font_0x44, true);
+		draw_note(image_data_Font_0x44, 1);
 		break;
 	case 7:
-		draw_note(image_data_Font_0x45, false);
+		draw_note(image_data_Font_0x45, 0);
 		break;
 	case 8:
-		draw_note(image_data_Font_0x46, false);
+		draw_note(image_data_Font_0x46, 0);
 		break;
 	case 9:
-		draw_note(image_data_Font_0x46, true);
+		draw_note(image_data_Font_0x46, 1);
 		break;
 	case 10:
-		draw_note(image_data_Font_0x47, false);
+		draw_note(image_data_Font_0x47, 0);
 		break;
 	case 11:
-		draw_note(image_data_Font_0x47, true);
+		draw_note(image_data_Font_0x47, 1);
 		break;
 	}
 }
@@ -320,7 +315,7 @@ int main(void)
 			}
 
 			i = (i+1) % WINDOW_SIZE;
-			dataReady = false;
+			dataReady = 0;
 		}
 	}
     /* USER CODE END WHILE */
