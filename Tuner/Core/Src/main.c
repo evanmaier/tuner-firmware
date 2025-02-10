@@ -24,7 +24,6 @@
 #include "arm_math.h"
 #include "st7735.h"
 #include "Yin.h"
-#include "audio_data.h"
 #include "display.h"
 /* USER CODE END Includes */
 
@@ -41,7 +40,6 @@
 #define THRESHOLD 0.1
 #define A4 440
 #define ADC_MAX 4095
-#define WINDOW_SIZE 3
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,24 +50,15 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
 SPI_HandleTypeDef hspi2;
-
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 uint16_t adcData[BUFFER_SIZE*2];
 uint16_t* adcBufPtr;
 uint8_t dataReady;
-
 float32_t yinBuffer[BUFFER_SIZE];
 Yin yin;
-
-uint16_t* testBufPtr;
-
-float32_t window[WINDOW_SIZE];
-
-uint32_t start, diff;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,32 +88,6 @@ void normalize_data() {
 	for(int i=0; i < BUFFER_SIZE; i++) {
 		yinBuffer[i] = (float32_t)(2 * adcBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
 	}
-}
-
-void normalize_test_data() {
-	for(int i=0; i < BUFFER_SIZE; i++) {
-		yinBuffer[i] = (float32_t)(2 * testBufPtr[i] - ADC_MAX) / (float32_t) ADC_MAX;
-	}
-}
-
-float32_t smoothing(float32_t pitch) {
-	float32_t sum = 0;
-	float32_t n = 0;
-
-	// Take average over window
-	for(uint8_t i = 0; i<WINDOW_SIZE; i++) {
-		if (window[i] != -1) {
-			sum += window[i];
-			n++;
-		}
-	}
-
-	// Return average if window is not empty
-	if (n > 0) {
-		return sum/n;
-	}
-
-	return -1;
 }
 /* USER CODE END 0 */
 
@@ -161,6 +124,7 @@ int main(void)
   MX_SPI2_Init();
   MX_ADC1_Init();
   MX_TIM2_Init();
+
   /* USER CODE BEGIN 2 */
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcData, BUFFER_SIZE*2);
 	HAL_TIM_Base_Start(&htim2);
@@ -171,51 +135,24 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-	/* Test Code */
-	if (TEST_MODE) {
-		while (1) {
-			testBufPtr = &sweepData[0];
-			for(int i = 0; i < sizeof(sweepData)/sizeof(uint16_t) - BUFFER_SIZE; i++) {
-			  normalize_test_data();
-			  update_display(Yin_getPitch(&yin, yinBuffer));
-			  testBufPtr++;
-			}
-		}
-	}
-
-  /* Real Code */
 	float32_t pitch;
-	uint8_t i = 0;
+
 	while (1) {
 		if (dataReady) {
 			// Center and normalize ADC data between -1.0 and 1.0
 			normalize_data();
 
 			// YIN pitch detection (Hz)
-			start = HAL_GetTick();
 			pitch = Yin_getPitch(&yin, yinBuffer);
-			diff = HAL_GetTick()-start;
 
 			if (yin.confidence > 0.95) {
 				// Convert to semitones
 				pitch = 12.0f * log2f(pitch / (float32_t) A4);
 
-				// Add to window
-				window[i] = pitch;
-
-				// Average over window
-				pitch = smoothing(pitch);
-
 				// Display current pitch
 				update_display(pitch);
 			}
 
-			else {
-				window[i] = -1;
-			}
-
-			i = (i+1) % WINDOW_SIZE;
 			dataReady = 0;
 		}
 	}
