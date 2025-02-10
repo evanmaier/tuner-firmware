@@ -27,6 +27,8 @@
 #define SHARP_WIDTH 20
 #define SHARP_HEIGHT 43
 
+int currNote, prevNote;
+
 void display_init() {
   ST7735_FillScreenFast(ST7735_BLACK);
   ST7735_FillRectangleFast(DISPLAY_WIDTH/2 - BAR_WIDTH/2, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
@@ -89,43 +91,50 @@ void draw_bar(float32_t cents){
 void update_display(float32_t pitch) {
   draw_bar((pitch - roundf(pitch)) * 100.0f);
 
-  switch (closest_note(pitch))
-  {
-  case 0:
-    draw_note(image_data_Font_0x41, 0);
-    break;
-  case 1:
-    draw_note(image_data_Font_0x41, 1);
-    break;
-  case 2:
-    draw_note(image_data_Font_0x42, 0);
-    break;
-  case 3:
-    draw_note(image_data_Font_0x43, 0);
-    break;
-  case 4:
-    draw_note(image_data_Font_0x43, 1);
-    break;
-  case 5:
-    draw_note(image_data_Font_0x44, 0);
-    break;
-  case 6:
-    draw_note(image_data_Font_0x44, 1);
-    break;
-  case 7:
-    draw_note(image_data_Font_0x45, 0);
-    break;
-  case 8:
-    draw_note(image_data_Font_0x46, 0);
-    break;
-  case 9:
-    draw_note(image_data_Font_0x46, 1);
-    break;
-  case 10:
-    draw_note(image_data_Font_0x47, 0);
-    break;
-  case 11:
-    draw_note(image_data_Font_0x47, 1);
-    break;
+  currNote = closest_note(pitch);
+
+  // Only draw note when note changes
+  if (currNote != prevNote) {
+    switch (currNote)
+    {
+    case 0:
+      draw_note(image_data_Font_0x41, 0);
+      break;
+    case 1:
+      draw_note(image_data_Font_0x41, 1);
+      break;
+    case 2:
+      draw_note(image_data_Font_0x42, 0);
+      break;
+    case 3:
+      draw_note(image_data_Font_0x43, 0);
+      break;
+    case 4:
+      draw_note(image_data_Font_0x43, 1);
+      break;
+    case 5:
+      draw_note(image_data_Font_0x44, 0);
+      break;
+    case 6:
+      draw_note(image_data_Font_0x44, 1);
+      break;
+    case 7:
+      draw_note(image_data_Font_0x45, 0);
+      break;
+    case 8:
+      draw_note(image_data_Font_0x46, 0);
+      break;
+    case 9:
+      draw_note(image_data_Font_0x46, 1);
+      break;
+    case 10:
+      draw_note(image_data_Font_0x47, 0);
+      break;
+    case 11:
+      draw_note(image_data_Font_0x47, 1);
+      break;
+    }
   }
+
+  prevNote = currNote;
 }
