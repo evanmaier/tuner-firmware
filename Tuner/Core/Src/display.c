@@ -15,11 +15,11 @@
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
-#define X_PADDING 5
+#define X_PADDING 4
 #define Y_PADDING 10
 /* Bar Parameters */
 #define BAR_HEIGHT 40
-#define BAR_WIDTH 5
+#define BAR_WIDTH 10
 #define CENTER_WIDTH 10
 #define GAP_WIDTH 1
 /* Note Parameters */
@@ -48,67 +48,36 @@ void draw_note(const uint16_t* note, uint8_t isSharp) {
 }
 
 void draw_bar(float32_t cents){
-  uint16_t bar;
-  uint16_t x = X_PADDING;
-  uint16_t w;
+  // Quantize cents
+  int16_t q = (cents + 5.0) /  10.0;
+
+  // Initialize offset
+  int16_t x = X_PADDING;
 
   // Draw flat bar
-  if (cents < -5) {
-    bar = floorf(-1.0f * cents / (float32_t)BAR_WIDTH);
-    // Fill space before bar
-    w = (BAR_WIDTH + GAP_WIDTH) * (50/BAR_WIDTH - 1 - bar);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-    x += w;
-
-    // Draw bar
-    w = BAR_WIDTH;
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_RED);
-    x += w;
-
-    // Fill space after bar before center
-    w = GAP_WIDTH + (BAR_WIDTH + GAP_WIDTH) * (bar - 1);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-    x += w + CENTER_WIDTH;
-
-    // Fill space after center
-    w = (BAR_WIDTH + GAP_WIDTH) * (50/BAR_WIDTH - 1);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
+  for (int8_t i = -5; i < 0; i++) {
+    if (i <= q) {
+      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_RED);
+    }
+    else {
+      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+    }
+    x += BAR_WIDTH + GAP_WIDTH;
   }
 
-  // Note is Centered
-  else if (cents < 5) {
-    // Fill space before center
-    w = (BAR_WIDTH + GAP_WIDTH) * (50/BAR_WIDTH - 1);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-
-    x += w + CENTER_WIDTH;
-
-    // Fill space after center
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-  }
+  // Skip over center
+  x += CENTER_WIDTH;
 
   // Draw sharp bar
-  else {
-    bar = floorf(cents / (float32_t)BAR_WIDTH);
-    // Fill space before center
-    w = (BAR_WIDTH + GAP_WIDTH) * (50/BAR_WIDTH - 1);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-    x += w + CENTER_WIDTH;
-
-    // Fill space after center before bar
-    w = GAP_WIDTH + (BAR_WIDTH + GAP_WIDTH) * (bar - 1);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-    x += w;
-
-    // Draw Bar
-    w = BAR_WIDTH;
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_GREEN);
-    x += w;
-
-    // Fill space after bar
-    w = (BAR_WIDTH + GAP_WIDTH) * (50/BAR_WIDTH - 1 - bar);
-    ST7735_FillRectangleFast(x, Y_PADDING, w, BAR_HEIGHT, ST7735_BLACK);
-    x += w;
+  for (int8_t i = 0; i < 5; i++) {
+    x += GAP_WIDTH;
+    if (i < q ) {
+      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_GREEN);
+    }
+    else {
+      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+    }
+    x += BAR_WIDTH;
   }
 }
 
