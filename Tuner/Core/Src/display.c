@@ -20,7 +20,6 @@
 /* Bar Parameters */
 #define BAR_HEIGHT 40
 #define BAR_WIDTH 10
-#define CENTER_WIDTH 10
 #define GAP_WIDTH 1
 /* Note Parameters */
 #define NOTE_WIDTH 56
@@ -30,7 +29,7 @@
 
 void display_init() {
   ST7735_FillScreenFast(ST7735_BLACK);
-  ST7735_FillRectangleFast(DISPLAY_WIDTH/2 - CENTER_WIDTH/2, Y_PADDING, CENTER_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
+  ST7735_FillRectangleFast(DISPLAY_WIDTH/2 - BAR_WIDTH/2, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
 }
 
 int closest_note(float32_t pitch) {
@@ -54,7 +53,7 @@ void draw_bar(float32_t cents){
   // Initialize offset
   int16_t x = X_PADDING;
 
-  // Draw flat bar
+  // Draw bar
   for (int8_t i = -5; i < 0; i++) {
     if (i <= q) {
       ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_RED);
@@ -65,8 +64,14 @@ void draw_bar(float32_t cents){
     x += BAR_WIDTH + GAP_WIDTH;
   }
 
-  // Skip over center
-  x += CENTER_WIDTH;
+  // Draw center
+  if (q >= 0){
+    ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
+  }
+  else {
+    ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+  }
+  x += BAR_WIDTH;
 
   // Draw sharp bar
   for (int8_t i = 0; i < 5; i++) {
