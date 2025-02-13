@@ -15,11 +15,10 @@
 /* Display Parameters */
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 160
-#define X_PADDING 4
-#define Y_PADDING 10
+#define PADDING 10
 /* Bar Parameters */
 #define BAR_HEIGHT 40
-#define BAR_WIDTH 10
+#define BAR_WIDTH 6
 #define GAP_WIDTH 1
 /* Note Parameters */
 #define NOTE_WIDTH 56
@@ -31,7 +30,7 @@ int currNote, prevNote;
 
 void display_init() {
   ST7735_FillScreenFast(ST7735_BLACK);
-  ST7735_FillRectangleFast(DISPLAY_WIDTH/2 - BAR_WIDTH/2, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
+  ST7735_FillRectangleFast(DISPLAY_WIDTH/2 - BAR_WIDTH/2, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
 }
 
 int closest_note(float32_t pitch) {
@@ -40,49 +39,49 @@ int closest_note(float32_t pitch) {
 }
 
 void draw_note(const uint16_t* note, uint8_t isSharp) {
-  ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - Y_PADDING, NOTE_WIDTH, NOTE_HEIGHT, note);
+  ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, NOTE_WIDTH, NOTE_HEIGHT, note);
   if (isSharp) {
-    ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - Y_PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
+    ST7735_DrawImage((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, image_data_Font_0x23);
   } else {
-    ST7735_FillRectangleFast((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - Y_PADDING, SHARP_WIDTH, SHARP_HEIGHT, ST7735_BLACK);
+    ST7735_FillRectangleFast((DISPLAY_WIDTH - NOTE_WIDTH)/2 + NOTE_WIDTH, DISPLAY_HEIGHT - NOTE_HEIGHT - PADDING, SHARP_WIDTH, SHARP_HEIGHT, ST7735_BLACK);
   }
 }
 
 void draw_bar(float32_t cents){
   // Quantize cents
-  int16_t q = (cents + 5.0) /  10.0;
+  int16_t q = (cents + BAR_WIDTH/2.0) / BAR_WIDTH;
 
   // Initialize offset
-  int16_t x = X_PADDING;
+  int16_t x = (DISPLAY_WIDTH - (2 * (BAR_WIDTH + GAP_WIDTH) * (50/BAR_WIDTH) + BAR_WIDTH)) / 2;
 
   // Draw bar
-  for (int8_t i = -5; i < 0; i++) {
+  for (int8_t i = -50/BAR_WIDTH; i < 0; i++) {
     if (i <= q) {
-      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_RED);
+      ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_RED);
     }
     else {
-      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+      ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
     }
     x += BAR_WIDTH + GAP_WIDTH;
   }
 
   // Draw center
   if (q >= 0){
-    ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
+    ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_YELLOW);
   }
   else {
-    ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+    ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
   }
   x += BAR_WIDTH;
 
   // Draw sharp bar
-  for (int8_t i = 0; i < 5; i++) {
+  for (int8_t i = 0; i < 50/BAR_WIDTH; i++) {
     x += GAP_WIDTH;
     if (i < q ) {
-      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_GREEN);
+      ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_GREEN);
     }
     else {
-      ST7735_FillRectangleFast(x, Y_PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
+      ST7735_FillRectangleFast(x, PADDING, BAR_WIDTH, BAR_HEIGHT, ST7735_BLACK);
     }
     x += BAR_WIDTH;
   }
